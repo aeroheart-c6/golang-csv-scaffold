@@ -99,9 +99,13 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 	// Read the records
 	log.Println("CSV parsing records...")
 	go func() {
-		var records []T = make([]T, 0, batchSize)
+		var records []T
 
 		for {
+			if records == nil {
+				records = make([]T, 0, batchSize)
+			}
+
 			values, err := reader.Read()
 			if err == io.EOF {
 				break
@@ -114,9 +118,9 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 
 			if len(records) >= batchSize && chanRecords != nil {
 				chanRecords <- records
+				records = nil
 			}
 		}
-
 
 		close(chanRecords)
 	}()
