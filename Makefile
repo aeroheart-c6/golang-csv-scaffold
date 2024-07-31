@@ -1,7 +1,7 @@
 DOCKER := docker
 DOCKER_COMPOSE := ${DOCKER} compose
 
-PROJECT_NAME := gemini
+PROJECT_NAME := gemini-experiments
 PROJECT_COMPOSE := PROJECT_NAME=${PROJECT_NAME} \
 	${DOCKER_COMPOSE}\
 		--project-directory .\
