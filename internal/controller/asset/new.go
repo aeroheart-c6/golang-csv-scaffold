@@ -10,6 +10,7 @@ import (
 type Controller interface {
 	ImportAssets(context.Context) error
 	ImportSubstations(context.Context, *csv.Reader) error
+	ImportDNSwitchboards(context.Context, *csv.Reader) error
 }
 
 func New(ctx context.Context, repo asset.Repository) Controller {

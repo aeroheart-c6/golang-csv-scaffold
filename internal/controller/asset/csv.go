@@ -21,8 +21,8 @@ func (f CSVFileName) IsValid() bool {
 	switch f {
 	case
 		substationCSVFileName,
-		switchboardDXCSVFileName,
-		switchboardPanelDXFileName:
+		switchboardDNCSVFileName,
+		switchboardPanelDNFileName:
 		return true
 	default:
 		return false
@@ -35,22 +35,34 @@ func (f CSVFileName) String() string {
 
 const (
 	substationCSVFileName      CSVFileName = "adwh_elec_substation_%s.csv"
-	switchboardDXCSVFileName   CSVFileName = "adwh_elec_dx_swb_%s.csv"
-	switchboardPanelDXFileName CSVFileName = "adwh_elec_dx_swb_pnl_%s.csv"
+	switchboardDNCSVFileName   CSVFileName = "adwh_elec_dx_swb_%s.csv"
+	switchboardPanelDNFileName CSVFileName = "adwh_elec_dx_swb_pnl_%s.csv"
 )
 
 type CSVRecord interface {
-	SubstationCSV
+	SubstationCSV |
+		SwitchboardCSV
 }
 
 func (i impl) ImportAssets(ctx context.Context) error {
 	root := "/var/data/gemini/adwh"
 	date := "20230721"
 
-	for pattern, importFn := range map[CSVFileName]func(context.Context, *csv.Reader) error{
-		substationCSVFileName: i.ImportSubstations,
+	importers := map[CSVFileName]func(context.Context, *csv.Reader) error{
+		substationCSVFileName:    i.ImportSubstations,
+		switchboardDNCSVFileName: i.ImportDNSwitchboards,
+	}
+
+	for _, pattern := range []CSVFileName{
+		substationCSVFileName,
+		switchboardDNCSVFileName,
 	} {
 		log.Println("Reading file:", pattern)
+
+		importer, ok := importers[pattern]
+		if !ok {
+			return fmt.Errorf("importer not found for %v", pattern)
+		}
 
 		file, err := os.Open(path.Join(root, fmt.Sprintf(pattern.String(), date)))
 		if err != nil {
@@ -60,7 +72,7 @@ func (i impl) ImportAssets(ctx context.Context) error {
 		reader := csv.NewReader(file)
 		reader.ReuseRecord = true
 
-		err = importFn(ctx, reader)
+		err = importer(ctx, reader)
 		if err != nil {
 			return err
 		}

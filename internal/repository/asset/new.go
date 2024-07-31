@@ -9,6 +9,7 @@ import (
 
 type Repository interface {
 	UpsertSubstations(context.Context, []model.Substation) error
+	UpsertSwitchboards(context.Context, []model.Switchboard) error
 }
 
 func New(ctx context.Context, mongoConf app.MongoConfig) Repository {
