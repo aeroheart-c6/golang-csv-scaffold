@@ -57,13 +57,13 @@ func (i impl) ImportAssets(ctx context.Context) error {
 		substationCSVFileName,
 		switchboardDNCSVFileName,
 	} {
-		log.Println("Reading file:", pattern)
-
+		log.Println("preparing importer")
 		importer, ok := importers[pattern]
 		if !ok {
 			return fmt.Errorf("importer not found for %v", pattern)
 		}
 
+		log.Println("reading file:", pattern)
 		file, err := os.Open(path.Join(root, fmt.Sprintf(pattern.String(), date)))
 		if err != nil {
 			return err
@@ -72,6 +72,7 @@ func (i impl) ImportAssets(ctx context.Context) error {
 		reader := csv.NewReader(file)
 		reader.ReuseRecord = true
 
+		log.Println("importing file:", pattern)
 		err = importer(ctx, i.repo, reader)
 		file.Close()
 		if err != nil {
@@ -83,80 +84,54 @@ func (i impl) ImportAssets(ctx context.Context) error {
 	return nil
 }
 
-// parseCSV runs through the file and outputs batches of the records read in chunks
-func parseCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSize int) (chan []T, error) {
+// parseCSV reads a chunk of data and returns it. Relies on `reader` to remember the location of the file
+func parseCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSize int) ([]T, error) {
 	var (
-		values []string
-		err    error
+		fieldsRaw map[string]bool
+		fields    []string
 	)
 
-	// Read the header as fields
-	values, err = reader.Read()
-	if err != nil {
-		return nil, err
+	// get the required headers
+	fieldsRaw = getCSVFields[T]()
+	fields = make([]string, 0, len(fieldsRaw))
+	for field := range fieldsRaw {
+		fields = append(fields, field)
 	}
-
-	err = validateCSVHeaders(values, getCSVFields[T]())
-	if err != nil {
-		return nil, err
-	}
-
-	fields := make([]string, 0, len(values))
-	fields = append(fields, values...)
-	log.Println("CSV fields:", fields)
-
-	var chanRecords chan []T = make(chan []T, 5)
+	log.Println("fields:", fields)
 
 	// Read the records
-	log.Println("CSV parsing records...")
-	go func() {
-		var records []T
+	log.Println("parsing data...")
+	var (
+		records []T
+		err     error
+	)
+parseLoop:
+	for loop := 0; loop < batchSize; loop++ {
+		var row []string
 
-	parseLoop:
-		for {
-			select {
-			case <-ctx.Done():
-				log.Printf("context is cancelled. peace out: %+v\n", context.Cause(ctx))
-				break parseLoop
-			default:
-			}
-
-			if records == nil {
-				records = make([]T, 0, batchSize)
-			}
-
-			values, err := reader.Read()
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				log.Printf("found an error in parsing, %+v\n", err)
-				continue
-			}
-
-			records = append(records, getCSVRecord[T](values, fields, len(fields)))
-			if len(records) < batchSize || chanRecords == nil {
-				continue
-			}
-
-			select {
-			case chanRecords <- records:
-				records = nil
-			case <-ctx.Done():
-				log.Println("CSV parsing cancelled")
-				break parseLoop
-			}
+		select {
+		case <-ctx.Done():
+			log.Printf("context is cancelled. peace out: %+v\n", context.Cause(ctx))
+			break parseLoop
+		default:
 		}
 
-		if records != nil {
-			log.Println("residue data found and making last delivery")
-			chanRecords <- records
-			records = nil
+		if records == nil {
+			records = make([]T, 0, batchSize)
 		}
 
-		close(chanRecords)
-	}()
+		row, err = reader.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.Printf("found an error in parsing, %+v\n", err)
+			continue
+		}
 
-	return chanRecords, nil
+		records = append(records, getCSVRecord[T](row, fields, len(fields)))
+	}
+
+	return records, err
 }
 
 // getCSVFields returns a string mapping of csv fields provided in the CSVRecord struct
@@ -219,5 +194,11 @@ func getCSVRecord[T CSVRecord](values []string, fields []string, fieldsLen int) 
  * validateCSVHeaders will validate whether all the expected headers are found or not
  */
 func validateCSVHeaders(headers []string, expectedHeaders map[string]bool) error {
+	/**
+	 * Why not do the read here?
+	 *
+	 * It seems weird that function should require that the line it reads are the headers of the CSV data. Like this
+	 * particular action is beyond its scope
+	 */
 	return nil
 }
