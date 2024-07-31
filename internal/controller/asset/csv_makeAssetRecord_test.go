@@ -30,7 +30,7 @@ func Test_makeAssetRecord_OK(t *testing.T) {
 		Three string `csv:"three"`
 	}
 
-	record := makeAssetRecord[CSVRecordOK](csvValues, csvFields, len(csvFields))
+	record := getCSVRecord[CSVRecordOK](csvValues, csvFields, len(csvFields))
 
 	require.Equal(t, record, CSVRecordOK{
 		One:   csvValues[0],
@@ -50,7 +50,7 @@ func Test_makeAssetRecord_MissingTags(t *testing.T) {
 		Three string `csv:"three"`
 	}
 
-	record := makeAssetRecord[CSVRecordMissingTags](csvValues, csvFields, len(csvFields))
+	record := getCSVRecord[CSVRecordMissingTags](csvValues, csvFields, len(csvFields))
 
 	require.Equal(t, record, CSVRecordMissingTags{
 		One:   csvValues[0],
@@ -70,7 +70,7 @@ func Test_makeAssetRecord_Private(t *testing.T) {
 		Three string `csv:"three"`
 	}
 
-	record := makeAssetRecord[CSVRecordPrivate](csvValues, csvFields, len(csvFields))
+	record := getCSVRecord[CSVRecordPrivate](csvValues, csvFields, len(csvFields))
 
 	require.Equal(t, record, CSVRecordPrivate{
 		One:   csvValues[0],
@@ -90,7 +90,7 @@ func Test_makeAssetRecord_NonString(t *testing.T) {
 		Three int    `csv:"three"`
 	}
 
-	record := makeAssetRecord[CSVRecordNonString](csvValues, csvFields, len(csvFields))
+	record := getCSVRecord[CSVRecordNonString](csvValues, csvFields, len(csvFields))
 
 	require.Equal(t, record, CSVRecordNonString{
 		One:   csvValues[0],
@@ -110,7 +110,7 @@ func Test_makeAssetRecord_Pointer(t *testing.T) {
 		Three *string `csv:"three"`
 	}
 
-	record := makeAssetRecord[CSVRecordPointer](csvValues, csvFields, len(csvFields))
+	record := getCSVRecord[CSVRecordPointer](csvValues, csvFields, len(csvFields))
 
 	require.Equal(t, record, CSVRecordPointer{
 		One:   csvValues[0],
@@ -132,7 +132,7 @@ func Test_makeAssetRecord_Nested(t *testing.T) {
 		} `csv:"three"`
 	}
 
-	record := makeAssetRecord[CSVRecordNested](csvValues, csvFields, len(csvFields))
+	record := getCSVRecord[CSVRecordNested](csvValues, csvFields, len(csvFields))
 
 	require.Equal(t, record, CSVRecordNested{
 		One:   csvValues[0],

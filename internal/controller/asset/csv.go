@@ -9,11 +9,12 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"time"
+
+	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/repository/asset"
 )
 
 const (
-	recordsBatchSize int = 20
+	recordsBatchSize int = 500
 )
 
 type CSVFileName string
@@ -47,9 +48,9 @@ func (i impl) ImportAssets(ctx context.Context) error {
 	root := "/var/data/gemini/adwh"
 	date := "20230721"
 
-	importers := map[CSVFileName]func(context.Context, *csv.Reader) error{
-		substationCSVFileName:    i.ImportSubstations,
-		switchboardDNCSVFileName: i.ImportDNSwitchboards,
+	importers := map[CSVFileName]func(context.Context, asset.Repository, *csv.Reader) error{
+		substationCSVFileName:    importSubstations,
+		switchboardDNCSVFileName: importSwitchboards[switchboardDXCSV],
 	}
 
 	for _, pattern := range []CSVFileName{
@@ -71,29 +72,40 @@ func (i impl) ImportAssets(ctx context.Context) error {
 		reader := csv.NewReader(file)
 		reader.ReuseRecord = true
 
-		err = importer(ctx, reader)
+		err = importer(ctx, i.repo, reader)
+		file.Close()
 		if err != nil {
 			return err
 		}
+
 	}
 
 	return nil
 }
 
-func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSize int) (chan []T, error) {
+// parseCSV runs through the file and outputs batches of the records read in chunks
+func parseCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSize int) (chan []T, error) {
+	var (
+		values []string
+		err    error
+	)
+
 	// Read the header as fields
-	values, err := reader.Read()
+	values, err = reader.Read()
 	if err != nil {
 		return nil, err
 	}
+
+	err = validateCSVHeaders(values, getCSVFields[T]())
+	if err != nil {
+		return nil, err
+	}
+
 	fields := make([]string, 0, len(values))
 	fields = append(fields, values...)
-
 	log.Println("CSV fields:", fields)
 
-	var (
-		chanRecords = make(chan []T, 5)
-	)
+	var chanRecords chan []T = make(chan []T, 5)
 
 	// Read the records
 	log.Println("CSV parsing records...")
@@ -107,8 +119,6 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 				log.Printf("context is cancelled. peace out: %+v\n", context.Cause(ctx))
 				break parseLoop
 			default:
-				log.Printf("sleeping...")
-				time.Sleep(10 * time.Millisecond)
 			}
 
 			if records == nil {
@@ -123,11 +133,17 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 				continue
 			}
 
-			records = append(records, makeAssetRecord[T](values, fields, len(fields)))
+			records = append(records, getCSVRecord[T](values, fields, len(fields)))
+			if len(records) < batchSize || chanRecords == nil {
+				continue
+			}
 
-			if len(records) >= batchSize && chanRecords != nil {
-				chanRecords <- records
+			select {
+			case chanRecords <- records:
 				records = nil
+			case <-ctx.Done():
+				log.Println("CSV parsing cancelled")
+				break parseLoop
 			}
 		}
 
@@ -143,7 +159,29 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 	return chanRecords, nil
 }
 
-func makeAssetRecord[T CSVRecord](values []string, fields []string, fieldsLen int) T {
+// getCSVFields returns a string mapping of csv fields provided in the CSVRecord struct
+func getCSVFields[T CSVRecord]() map[string]bool {
+	var (
+		record     T
+		recordType reflect.Type  = reflect.TypeOf(record)
+		recordVal  reflect.Value = reflect.ValueOf(&record).Elem()
+	)
+
+	result := map[string]bool{}
+
+	for idx := 0; idx < recordType.NumField(); idx++ {
+		csvField := recordVal.Type().Field(idx).Tag.Get("csv")
+		if csvField == "" || csvField == "-" {
+			continue
+		}
+		result[csvField] = true
+	}
+
+	return result
+}
+
+// getCSVRecord creates an instance of T based on the values and fields taken from the CSV file
+func getCSVRecord[T CSVRecord](values []string, fields []string, fieldsLen int) T {
 	mapping := make(map[string]string, fieldsLen)
 
 	// zip the field and values together in a map
@@ -175,4 +213,11 @@ func makeAssetRecord[T CSVRecord](values []string, fields []string, fieldsLen in
 	}
 
 	return record
+}
+
+/**
+ * validateCSVHeaders will validate whether all the expected headers are found or not
+ */
+func validateCSVHeaders(headers []string, expectedHeaders map[string]bool) error {
+	return nil
 }

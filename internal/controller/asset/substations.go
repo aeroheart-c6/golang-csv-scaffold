@@ -5,19 +5,19 @@ import (
 	"encoding/csv"
 	"errors"
 	"log"
-	"time"
 
 	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/model"
+	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/repository/asset"
 )
 
-type SubstationCSV struct {
+type substationCSV struct {
 	AssetID string `csv:"asset_id"`
 	Name    string `csv:"substation_name"`
 	Status  string `csv:"asset_status"`
 	Network string `csv:"object_type"`
 }
 
-func (s SubstationCSV) ConvertStatus() (model.AssetStatus, error) {
+func (s substationCSV) convertStatus() (model.AssetStatus, error) {
 	status, ok := map[string]model.AssetStatus{
 		"C":  model.AssetStatusCommissioned,
 		"DC": model.AssetStatusDecommissioned,
@@ -32,7 +32,7 @@ func (s SubstationCSV) ConvertStatus() (model.AssetStatus, error) {
 	return status, nil
 }
 
-func (s SubstationCSV) ConvertNetwork() (model.Network, error) {
+func (s substationCSV) convertNetwork() (model.Network, error) {
 	network, ok := map[string]model.Network{
 		"FNDXSS": model.NetworkDX,
 		"FNTXSS": model.NetworkTX,
@@ -45,20 +45,42 @@ func (s SubstationCSV) ConvertNetwork() (model.Network, error) {
 	return network, nil
 }
 
+func (s substationCSV) toModel() (model.Substation, error) {
+	status, err := s.convertStatus()
+	if err != nil {
+		return model.Substation{}, errors.New("substation status is invalid")
+	}
+
+	network, err := s.convertNetwork()
+	if err != nil {
+		return model.Substation{}, errors.New("network is invalid")
+	}
+
+	return model.Substation{
+		AssetID: s.AssetID,
+		Name:    s.Name,
+		Status:  status,
+		Network: network,
+	}, nil
+}
+
 // ImportSubstations runs through the CSV file and saves them into the database
-func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
-	cancelCtx, cancelFn := context.WithCancelCause(ctx)
+func importSubstations(ctx context.Context, repo asset.Repository, reader *csv.Reader) error {
+	var (
+		chanRecords chan []substationCSV
+		err         error
+	)
 
-	go func() {
-		log.Println("sleeping for 2 seconds")
-		time.Sleep(2 * time.Second)
+	/*
+	 *	cancelCtx, cancelFn := context.WithCancelCause(ctx)
+	 *	go func() {
+	 *		time.Sleep(2 * time.Second)
+	 *		cancelFn(errors.New("giving up on ingestion"))
+	 *	}()
+	 */
 
-		log.Println("cancelling ingestion")
-		cancelFn(errors.New("giving up ingestion"))
-	}()
-
-	chanRecords, err := parseAssetCSV[SubstationCSV](
-		cancelCtx,
+	chanRecords, err = parseCSV[substationCSV](
+		ctx,
 		reader,
 		recordsBatchSize,
 	)
@@ -70,26 +92,23 @@ func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
 	for records := range chanRecords {
 		models := make([]model.Substation, 0, recordsBatchSize)
 
-		for _, record := range records {
-			status, err := record.ConvertStatus()
+		for idx, record := range records {
+			var (
+				m   model.Substation
+				err error
+			)
+
+			// translate from raw CSV record to model
+			m, err = record.toModel()
 			if err != nil {
+				log.Printf("skipping row (%d) %v", idx, err)
 				continue
 			}
 
-			network, err := record.ConvertNetwork()
-			if err != nil {
-				continue
-			}
-
-			models = append(models, model.Substation{
-				AssetID: record.AssetID,
-				Name:    record.Name,
-				Status:  status,
-				Network: network,
-			})
+			models = append(models, m)
 		}
 
-		err = i.repo.UpsertSubstations(ctx, models)
+		err = repo.UpsertSubstations(ctx, models)
 		if err != nil {
 			return err
 		}
