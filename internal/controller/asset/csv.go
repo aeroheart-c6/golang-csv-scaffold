@@ -40,8 +40,6 @@ const (
 )
 
 type CSVRecord interface {
-	SubstationCSV |
-		SwitchboardCSV
 }
 
 func (i impl) ImportAssets(ctx context.Context) error {
@@ -147,7 +145,7 @@ func makeAssetRecord[T CSVRecord](values []string, fields []string, fieldsLen in
 		field := recordType.Field(idx).Tag.Get("csv")
 		value := recordVal.Field(idx)
 
-		if !value.CanSet() && value.Kind() != reflect.String {
+		if !value.CanSet() || value.Kind() != reflect.String {
 			continue
 		}
 
