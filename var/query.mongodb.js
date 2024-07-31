@@ -1,8 +1,8 @@
 /**
  * Check substations that have >1 switchboards in the list. To test if my code works
  */
-function countSwitchboards() {
-    db.substations.aggregate([
+function getSubstationsWithSwitchboards() {
+    return db.substations.aggregate([
         {
             "$project": {
                 "switchboardCount": { "$size": "$assets.switchboards" },
@@ -32,6 +32,10 @@ function countSubstations() {
     return db.substations.countDocuments();
 }
 
+function countSwitchboards() {
+    return db.switchboards.countDocuments();
+}
+
 /**
  * Asset Hierarchy query
  */
@@ -53,4 +57,5 @@ function findImportedSubstation() {
 
 
 use("gemini");
-countSubstations();
+print("Substations: " + countSubstations());
+print("Switchboards: " + countSwitchboards());

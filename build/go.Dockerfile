@@ -1,6 +1,4 @@
-FROM golang:1.20-bookworm
-
-RUN apt-get update
+FROM golang:1.21-alpine
 
 ENV GOPRIVATE=code.in.spdigital.sg
 ENV GO111MODULE=on

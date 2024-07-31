@@ -27,7 +27,7 @@ services:
             MONGO_INITDB_ROOT_PASSWORD: root
 
     importer:
-        image: golang:1.20-bookworm
+        image: golang:1.21-alpine
         deploy:
             resources:
                 limits:
@@ -37,7 +37,7 @@ services:
                     cpus: '1.0'
                     memory: 512m
         volumes:
-            - /Users/janchua/Documents/projects/gemini/adwh/new:/var/data/gemini/adwh
+            - /Users/pcjr0776/Documents/projects/gemini/adwh/new:/var/data/gemini/adwh
             - .:/go/src
         networks:
             - network
