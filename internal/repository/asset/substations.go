@@ -11,42 +11,42 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func (i impl) UpsertSubstations(ctx context.Context, substations []model.Substation) error {
+func (i impl) UpsertSubstations(ctx context.Context, records []model.Substation) error {
 	var (
 		now    = time.Now().UTC()
-		writes = make([]mongo.WriteModel, 0, len(substations))
+		writes = make([]mongo.WriteModel, 0, len(records))
 	)
 
-	for _, substation := range substations {
-		if substation.ID.IsZero() {
-			substation.ID = primitive.NewObjectID()
+	for _, record := range records {
+		if record.ID.IsZero() {
+			record.ID = primitive.NewObjectID()
 		}
 
-		if substation.CreatedAt.IsZero() {
-			substation.CreatedAt = now
+		if record.CreatedAt.IsZero() {
+			record.CreatedAt = now
 		}
 
 		op := mongo.NewUpdateOneModel().
 			SetFilter(bson.D{
 				{Key: "$or", Value: bson.A{
-					bson.D{{Key: "_id", Value: substation.ID}},
-					bson.D{{Key: "asset_id", Value: substation.AssetID}},
+					bson.D{{Key: "_id", Value: record.ID}},
+					bson.D{{Key: "asset_id", Value: record.AssetID}},
 				}},
 			}).
 			SetUpsert(true).
 			SetUpdate(bson.D{
 				{Key: "$setOnInsert", Value: bson.D{
-					{Key: "_id", Value: substation.ID},
+					{Key: "_id", Value: record.ID},
 					{Key: "assets", Value: bson.D{
 						{Key: "switchboards", Value: bson.A{}},
 					}},
 				}},
 				{Key: "$set", Value: bson.D{
-					{Key: "asset_id", Value: substation.AssetID},
-					{Key: "name", Value: substation.Name},
-					{Key: "status", Value: substation.Status.String()},
-					{Key: "network", Value: substation.Network.String()},
-					{Key: "created_at", Value: substation.CreatedAt},
+					{Key: "asset_id", Value: record.AssetID},
+					{Key: "name", Value: record.Name},
+					{Key: "status", Value: record.Status.String()},
+					{Key: "network", Value: record.Network.String()},
+					{Key: "created_at", Value: record.CreatedAt},
 					{Key: "updated_at", Value: now},
 				}},
 			})
