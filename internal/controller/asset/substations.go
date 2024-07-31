@@ -55,6 +55,7 @@ func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
 		return err
 	}
 
+	log.Println("importing substations...")
 	for records := range chanRecords {
 		models := make([]model.Substation, 0, recordsBatchSize)
 
@@ -77,11 +78,10 @@ func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
 			})
 		}
 
-		log.Println("CSV saving records...")
-		i.repo.UpsertSubstations(ctx, models)
-		break
-	}
-
+		err = i.repo.UpsertSubstations(ctx, models)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
