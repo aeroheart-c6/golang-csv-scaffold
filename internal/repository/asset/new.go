@@ -8,6 +8,7 @@ import (
 )
 
 type Repository interface {
+	GetSubstation(context.Context, string) (model.Substation, error)
 	UpsertSubstations(context.Context, []model.Substation) error
 	UpsertSwitchboards(context.Context, []model.Switchboard) error
 }

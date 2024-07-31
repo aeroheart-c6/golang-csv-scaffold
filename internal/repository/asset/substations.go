@@ -67,3 +67,21 @@ func (i impl) UpsertSubstations(ctx context.Context, records []model.Substation)
 	log.Printf("upserted records: %+v\n", result)
 	return nil
 }
+
+func (i impl) GetSubstation(ctx context.Context, assetID string) (model.Substation, error) {
+	var result model.Substation
+
+	err := i.mongoConf.Client.
+		Database(i.mongoConf.DBName).
+		Collection("substations").
+		FindOne(ctx, bson.D{
+			bson.E{Key: "asset_id", Value: assetID},
+		}).
+		Decode(&result)
+
+	if err != nil {
+		return model.Substation{}, err
+	}
+
+	return result, nil
+}
