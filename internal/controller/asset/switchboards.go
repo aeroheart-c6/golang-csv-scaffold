@@ -32,7 +32,7 @@ func (s SwitchboardCSV) ConvertStatus() (model.AssetStatus, error) {
 }
 
 func (i impl) ImportDNSwitchboards(ctx context.Context, reader *csv.Reader) error {
-	chanRecords, chanErr, err := parseAssetCSV[SwitchboardCSV](
+	chanRecords, err := parseAssetCSV[SwitchboardCSV](
 		ctx,
 		reader,
 		recordsBatchSize,
@@ -60,13 +60,11 @@ func (i impl) ImportDNSwitchboards(ctx context.Context, reader *csv.Reader) erro
 		}
 
 		log.Println("CSV saving records...")
-		i.repo.UpsertSwitchboards(ctx, models)
-		break
+		err := i.repo.UpsertSwitchboards(ctx, models)
+		if err != nil {
+			return err
+		}
 	}
 
-	if len(chanErr) == 0 {
-		return nil
-	}
-
-	return <-chanErr
+	return nil
 }

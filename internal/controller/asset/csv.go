@@ -81,11 +81,11 @@ func (i impl) ImportAssets(ctx context.Context) error {
 	return nil
 }
 
-func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSize int) (chan []T, chan error, error) {
+func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSize int) (chan []T, error) {
 	// Read the header as fields
 	values, err := reader.Read()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	fields := make([]string, 0, len(values))
 	fields = append(fields, values...)
@@ -94,7 +94,6 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 
 	var (
 		chanRecords = make(chan []T, 5)
-		chanErr     = make(chan error)
 	)
 
 	// Read the records
@@ -107,8 +106,8 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				chanErr <- err
-				break
+				log.Printf("found an error in parsing, %+v\n", err)
+				continue
 			}
 
 			records = append(records, makeAssetRecord[T](values, fields, len(fields)))
@@ -118,15 +117,11 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 			}
 		}
 
-		if err != nil && err != io.EOF {
-			chanErr <- err
-		}
 
 		close(chanRecords)
-		close(chanErr)
 	}()
 
-	return chanRecords, chanErr, nil
+	return chanRecords, nil
 }
 
 func makeAssetRecord[T CSVRecord](values []string, fields []string, fieldsLen int) T {

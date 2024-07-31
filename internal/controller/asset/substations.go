@@ -46,7 +46,7 @@ func (s SubstationCSV) ConvertNetwork() (model.Network, error) {
 
 // ImportSubstations runs through the CSV file and saves them into the database
 func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
-	chanRecords, chanErr, err := parseAssetCSV[SubstationCSV](
+	chanRecords, err := parseAssetCSV[SubstationCSV](
 		ctx,
 		reader,
 		recordsBatchSize,
@@ -82,9 +82,7 @@ func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
 		break
 	}
 
-	if len(chanErr) == 0 {
-		return nil
 	}
 
-	return <-chanErr
+	return nil
 }
