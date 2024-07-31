@@ -53,4 +53,4 @@ function findImportedSubstation() {
 
 
 use("gemini");
-getHierarchy();
+countSubstations();

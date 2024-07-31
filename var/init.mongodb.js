@@ -56,7 +56,57 @@ function load() {
     ]);
 }
 
+function getSize(name) {
+    const collection = db.getCollection(name);
+
+    if (!collection)
+        return { "ok": 0 };
+
+    return collection.stats();
+}
+
+function loadSensors(count) {
+    const
+        configs = [],
+        thresholds = [];
+
+    for (var loop = 0; loop < count; loop++) {
+        const configId = ObjectId()
+
+        configs.push({
+            "_id": configId,
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-01T00:00:00Z",
+            "deleted_at": "2023-01-01T00:00:00Z",
+            "substation_id": ObjectId("000000000000000000000001"),
+            "asset_id": ObjectId("000000000000000000000001"),
+            "asset_type": "LOW_VOLTAGE_BOARD",
+            "sensor_id": "12345678900000",
+            "property": "LVB_RED_TEMPERATURE",
+            "thresholds": {
+                "min": 9999,
+                "max": 9999,
+                "started_at": "2023-01-01T00:00:00Z",
+            }
+        });
+
+        thresholds.push({
+            "_id": ObjectId(),
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-01T00:00:00Z",
+            "ended_at": "2023-01-01T00:00:00Z",
+            "sensor_config_id": configId,
+            "min": 9999,
+            "max": 9999,
+        });
+    }
+
+    db.sensorConfigs.insertMany(configs);
+    db.sensorThresholds.insertMany(thresholds);
+}
 
 use("gemini");
 reset();
-load();
+// loadSensors(100);
+// getSize("sensorConfigs");
+// getSize("sensorThresholds");
