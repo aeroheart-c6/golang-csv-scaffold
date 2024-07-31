@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"io"
 	"log"
 
 	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/model"
@@ -67,9 +68,20 @@ func (s substationCSV) toModel() (model.Substation, error) {
 // ImportSubstations runs through the CSV file and saves them into the database
 func importSubstations(ctx context.Context, repo asset.Repository, reader *csv.Reader) error {
 	var (
-		chanRecords chan []substationCSV
-		err         error
+		values []string
+		err    error
 	)
+
+	// Read the header as fields
+	values, err = reader.Read()
+	if err != nil {
+		return err
+	}
+
+	err = validateCSVHeaders(values, getCSVFields[substationCSV]())
+	if err != nil {
+		return err
+	}
 
 	/*
 	 *	cancelCtx, cancelFn := context.WithCancelCause(ctx)
@@ -79,38 +91,41 @@ func importSubstations(ctx context.Context, repo asset.Repository, reader *csv.R
 	 *	}()
 	 */
 
-	chanRecords, err = parseCSV[substationCSV](
-		ctx,
-		reader,
-		recordsBatchSize,
-	)
-	if err != nil {
-		return err
-	}
-
 	log.Println("importing substations...")
-	for records := range chanRecords {
-		models := make([]model.Substation, 0, recordsBatchSize)
+	for {
+		var (
+			records  []substationCSV
+			err      error
+			errParse error
+		)
 
+		records, errParse = parseCSV[substationCSV](ctx, reader, recordsBatchSize)
+
+		var models []model.Substation = make([]model.Substation, 0, len(records))
 		for idx, record := range records {
 			var (
-				m   model.Substation
-				err error
+				substation model.Substation
+				err        error
 			)
 
 			// translate from raw CSV record to model
-			m, err = record.toModel()
+			substation, err = record.toModel()
 			if err != nil {
 				log.Printf("skipping row (%d) %v", idx, err)
 				continue
 			}
 
-			models = append(models, m)
+			models = append(models, substation)
 		}
 
+		log.Println("saving records...")
 		err = repo.UpsertSubstations(ctx, models)
 		if err != nil {
 			return err
+		}
+
+		if errors.Is(errParse, io.EOF) {
+			break
 		}
 	}
 
