@@ -18,6 +18,14 @@ func (i impl) UpsertSubstations(ctx context.Context, substations []model.Substat
 	)
 
 	for _, substation := range substations {
+		if substation.ID.IsZero() {
+			substation.ID = primitive.NewObjectID()
+		}
+
+		if substation.CreatedAt.IsZero() {
+			substation.CreatedAt = now
+		}
+
 		op := mongo.NewUpdateOneModel().
 			SetFilter(bson.D{
 				{Key: "$or", Value: bson.A{
@@ -28,9 +36,7 @@ func (i impl) UpsertSubstations(ctx context.Context, substations []model.Substat
 			SetUpsert(true).
 			SetUpdate(bson.D{
 				{Key: "$setOnInsert", Value: bson.D{
-					{Key: "_id", Value: primitive.NewObjectID()},
-					{Key: "created_at", Value: now},
-					{Key: "updated_at", Value: now},
+					{Key: "_id", Value: substation.ID},
 					{Key: "assets", Value: bson.D{
 						{Key: "switchboards", Value: bson.A{}},
 					}},
@@ -40,6 +46,8 @@ func (i impl) UpsertSubstations(ctx context.Context, substations []model.Substat
 					{Key: "name", Value: substation.Name},
 					{Key: "status", Value: substation.Status.String()},
 					{Key: "network", Value: substation.Network.String()},
+					{Key: "created_at", Value: substation.CreatedAt},
+					{Key: "updated_at", Value: now},
 				}},
 			})
 

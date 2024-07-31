@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"log"
-	"time"
 
 	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/model"
 )
@@ -57,7 +56,7 @@ func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
 	}
 
 	for records := range chanRecords {
-		substations := make([]model.Substation, 0, recordsBatchSize)
+		models := make([]model.Substation, 0, recordsBatchSize)
 
 		for _, record := range records {
 			status, err := record.ConvertStatus()
@@ -70,19 +69,16 @@ func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
 				continue
 			}
 
-			substations = append(substations, model.Substation{
-				ID:        0,
-				AssetID:   record.AssetID,
-				Name:      record.Name,
-				Status:    status,
-				Network:   network,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+			models = append(models, model.Substation{
+				AssetID: record.AssetID,
+				Name:    record.Name,
+				Status:  status,
+				Network: network,
 			})
 		}
 
 		log.Println("CSV saving records...")
-		i.repo.UpsertSubstations(ctx, substations)
+		i.repo.UpsertSubstations(ctx, models)
 		break
 	}
 
