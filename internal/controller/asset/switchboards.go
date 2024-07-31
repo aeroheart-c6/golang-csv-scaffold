@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"io"
 	"log"
 
 	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/model"
@@ -57,39 +58,50 @@ func (s switchboardDXCSV) toModel() (model.Switchboard, error) {
 
 func importSwitchboards[T switchboardCSV](ctx context.Context, repo asset.Repository, reader *csv.Reader) error {
 	var (
-		chanRecords chan []T
-		err         error
+		values []string
+		err    error
 	)
-	chanRecords, err = parseCSV[T](
-		ctx,
-		reader,
-		recordsBatchSize,
-	)
+
+	// Read the header as fields
+	values, err = reader.Read()
+	if err != nil {
+		return err
+	}
+
+	err = validateCSVHeaders(values, getCSVFields[T]())
 	if err != nil {
 		return err
 	}
 
 	log.Println("importing switchboards...")
-	for records := range chanRecords {
+	for {
 		var (
-			models      = make([]model.Switchboard, 0, len(records))
-			substations = make(map[string]model.Substation, 0)
+			records  []T
+			err      error
+			errParse error
 		)
 
+		records, errParse = parseCSV[T](ctx, reader, recordsBatchSize)
+
+		var (
+			models      = make([]model.Switchboard, 0, len(records))
+			substations = make(map[string]model.Substation, len(records))
+		)
 		for idx, record := range records {
 			var (
-				substation  model.Substation
-				switchboard model.Switchboard
-				err         error
-				ok          bool
+				substationID string = record.parentAssetID()
+				substation   model.Substation
+				switchboard  model.Switchboard
+				err          error
+				ok           bool
 			)
 
 			// check if substation exists
-			substation, ok = substations[record.parentAssetID()]
+			substation, ok = substations[substationID]
 			if !ok {
-				substation, err = repo.GetSubstation(ctx, record.parentAssetID())
+				substation, err = repo.GetSubstation(ctx, substationID)
 				if err != nil {
-					log.Printf("unable to find substation [%s]. skipping.", record.parentAssetID())
+					log.Printf("unable to find substation [%s]. skipping.", substationID)
 					continue
 				}
 
@@ -107,10 +119,14 @@ func importSwitchboards[T switchboardCSV](ctx context.Context, repo asset.Reposi
 			models = append(models, switchboard)
 		}
 
-		log.Println("CSV saving records...")
-		err := repo.UpsertSwitchboards(ctx, models)
+		log.Println("saving records...")
+		err = repo.UpsertSwitchboards(ctx, models)
 		if err != nil {
 			return err
+		}
+
+		if errors.Is(errParse, io.EOF) {
+			break
 		}
 	}
 
