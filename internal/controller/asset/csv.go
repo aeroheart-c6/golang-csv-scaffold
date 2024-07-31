@@ -9,10 +9,11 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"time"
 )
 
 const (
-	recordsBatchSize int = 100
+	recordsBatchSize int = 20
 )
 
 type CSVFileName string
@@ -99,7 +100,17 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 	go func() {
 		var records []T
 
+	parseLoop:
 		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("context is cancelled. peace out: %+v\n", context.Cause(ctx))
+				break parseLoop
+			default:
+				log.Printf("sleeping...")
+				time.Sleep(10 * time.Millisecond)
+			}
+
 			if records == nil {
 				records = make([]T, 0, batchSize)
 			}
@@ -118,6 +129,12 @@ func parseAssetCSV[T CSVRecord](ctx context.Context, reader *csv.Reader, batchSi
 				chanRecords <- records
 				records = nil
 			}
+		}
+
+		if records != nil {
+			log.Println("residue data found and making last delivery")
+			chanRecords <- records
+			records = nil
 		}
 
 		close(chanRecords)

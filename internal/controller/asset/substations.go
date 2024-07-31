@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"log"
+	"time"
 
 	"code.in.spdigital.sg/sp-digital/gemini/api-mongo/internal/model"
 )
@@ -46,8 +47,18 @@ func (s SubstationCSV) ConvertNetwork() (model.Network, error) {
 
 // ImportSubstations runs through the CSV file and saves them into the database
 func (i impl) ImportSubstations(ctx context.Context, reader *csv.Reader) error {
+	cancelCtx, cancelFn := context.WithCancelCause(ctx)
+
+	go func() {
+		log.Println("sleeping for 2 seconds")
+		time.Sleep(2 * time.Second)
+
+		log.Println("cancelling ingestion")
+		cancelFn(errors.New("giving up ingestion"))
+	}()
+
 	chanRecords, err := parseAssetCSV[SubstationCSV](
-		ctx,
+		cancelCtx,
 		reader,
 		recordsBatchSize,
 	)
