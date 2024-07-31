@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+    #===================================================================================================================
+    # External Services
+    #===================================================================================================================
+    mongodb:
+        image: mongo:7.0.0-jammy
+        restart: "no"
+        deploy:
+            resources:
+                limits:
+                    cpus: '2.0'
+                    memory: 4g
+                reservations:
+                    cpus: '2.0'
+                    memory: 4g
+        ports:
+            - 8081:8081
+            - 27017:27017
+        volumes:
+            - mongodb-data:/data/db
+        networks:
+            - network
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: root
+            MONGO_INITDB_ROOT_PASSWORD: root
+
+    importer:
+        image: golang:1.20-bookworm
+        deploy:
+            resources:
+                limits:
+                    cpus: '1.0'
+                    memory: 1g
+                reservations:
+                    cpus: '0.5'
+                    memory: 512m
+        volumes:
+            - /Users/janchua/Documents/projects/gemini/adwh/new:/var/data/gemini/adwh
+            - .:/go/src
+        networks:
+            - network
+        environment:
+            GEMINI_MONGODB_URI: mongodb://root:root@mongodb:27017
+            GEMINI_MONGODB_DATABASE: gemini
+
+networks:
+    network:
+        name: ${PROJECT_NAME}
+        ipam:
+            driver: default
+            config:
+                - subnet: 192.168.0.0/24
+                  ip_range: 192.168.0.0/24
+                  gateway: 192.168.0.1
+        attachable: true
+
+volumes:
+    mongodb-data:
+
