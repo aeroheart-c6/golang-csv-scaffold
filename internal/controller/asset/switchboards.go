@@ -41,8 +41,12 @@ func (i impl) ImportDNSwitchboards(ctx context.Context, reader *csv.Reader) erro
 		return err
 	}
 
+	log.Println("importing distribution switchboards...")
 	for records := range chanRecords {
-		models := make([]model.Switchboard, 0, recordsBatchSize)
+		var (
+			models      = make([]model.Switchboard, 0, len(records))
+			substations = make(map[string]model.Substation, 0)
+		)
 
 		for _, record := range records {
 			status, err := record.ConvertStatus()
@@ -50,8 +54,18 @@ func (i impl) ImportDNSwitchboards(ctx context.Context, reader *csv.Reader) erro
 				continue
 			}
 
+			substation, ok := substations[record.SubstationID]
+			if !ok {
+				substation, err = i.repo.GetSubstation(ctx, record.SubstationID)
+				if err != nil {
+					continue
+				}
+				substations[record.SubstationID] = substation
+			}
+
 			models = append(models, model.Switchboard{
 				AssetID:           record.AssetID,
+				SubstationID:      substation.ID,
 				Name:              record.Name,
 				Status:            status,
 				Network:           model.NetworkDX,
